@@ -114,12 +114,41 @@ elif sleep_end - sleep_start < 7:
 else:
     lbt = sleep_end - 3
 lbt = revert(lbt)
+
+def schedule(index, change, sleep_start, sleep_end, lbt):
+    '''given an index and phase offset, designs a schedule over x days in index'''
+    for day in range(index):
+        lbt = revert(lbt + change)
+        sleep_start = revert(sleep_start + change)
+        sleep_end = revert(sleep_end + change)
+        print("Local Time")
+        print(sleep_start, sleep_end)
+        print("Destination Time")
+        print(revert(sleep_start + delta), revert(sleep_end + delta))
+    print("-----")
+
+schedule(days_before, change, sleep_start, sleep_end, lbt)
+
+#bonus: scientific score of science
+
+def score(days_before, delta, coffee, alcohol, travel_sleep):
+    '''Calculates a score measuring efficiency of the generated jet lag schedule
+    based on days dedicated to shifting, coffee and alcohol intake, and sleep
+    while travelling.
+
+    coffee = 1 or -1 depending on intake amount
+    alcohol = 0 or -1 depending on intake
+    travel_sleep = 0 or 1'''
+
+    return (max(days_before, abs(delta)) + coffee*0.2 + alcohol*0.2 + travel_sleep*0.2)
+    #these values are arbitrary and can be tuned further
+
+#bonus2: calculating ideal sleep time for maximum score
+
+if 0 < delta < 8: #requirements for phase advance
+    schedule(delta, -1, sleep_start, sleep_end, lbt)
+else:
+    schedule(delta//2, 2, sleep_start, sleep_end, lbt)
+        
     
-for day in range(days_before):
-    '''inefficient method: divide time zone delta over days to find average
-delay/advance in sleep schedule, ignoring all recommended restrictions'''
-    lbt = revert(lbt + change)
-    sleep_start = revert(sleep_start + change)
-    sleep_end = revert(sleep_end + change)
-    print(sleep_start, sleep_end)
 
