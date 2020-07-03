@@ -21,6 +21,8 @@ change = delta // days_before
 
 '''
 import time
+import requests
+import json
 
 def revert(var):
     '''converts any hours outside [0,24] to between regular hours.'''
@@ -39,7 +41,7 @@ departure = time.strptime(departure_string, "%d %B %Y, %H:%M")
 arrival_string = "21 June 2018, 9:00"
 arrival = time.strptime(arrival_string, "%d %B %Y, %H:%M")
 redeparture_string = "26 June 2018"
-redeparture = time.strptime(arrival_string, "%d %B %Y")
+redeparture = time.strptime(redeparture_string, "%d %B %Y")
 
 '''in the form of (hour, minute)'''
 sleep_start = 23.0
@@ -74,6 +76,21 @@ delay/advance in sleep schedule, ignoring all recommended restrictions'''
     sleep_start = revert(sleep_start + change)
     sleep_end = revert(sleep_end + change)
     print(sleep_start, sleep_end)
+
+#converts a given city into approximate coordinates
+city = "Beijing" # input here
+response2 = requests.get("https://maps.googleapis.com/maps/api/geocode/json?address={0}&key=AIzaSyC1PSvX7NUotfAZWY68hT6kgHrtVxrrg8g".format(city))
+y = json.loads(response2.content)
+y2 = y["results"][0]["geometry"]["location"]
+lat, long = y2["lat"], y2["lng"]
+
+#converts coordinates to a designated time zone (use raw offset)
+response = requests.get("https://maps.googleapis.com/maps/api/timezone/json?location={0},{1}&timestamp={2}&key=AIzaSyC1PSvX7NUotfAZWY68hT6kgHrtVxrrg8g".format(lat,long,time.time()))
+x = json.loads(response.content)
+tz1 = x["rawOffset"] // 3600 #contains the hours offset from UTC
+print(tz1)
+
+
 
 ''' disregard for now
 class Time:
