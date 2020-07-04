@@ -9,6 +9,10 @@ app = Flask(__name__)
 def initialization():
     return render_template('test.html')
 
+@app.route('/error')
+def error():
+    return fail
+
 @app.route('/', methods = ["POST"]) # "/" will link to something else
 def signup():
     depart_city = request.form["dest"]
@@ -18,9 +22,20 @@ def signup():
     sleep_start = request.form["sleep"]
     sleep_end = request.form["wake"]
     shift_day = request.form["shift"]
-    travel_sleep = request.form.get("plane_sleep")
-    alcohol = request.form.get("alcohol")
-    coffee = request.form.get("caffeine")
+    if request.form.get("plane_sleep") == "on":
+        travel_sleep = 1
+    else:
+        travel_sleep = 0
+    if request.form.get("alcohol") == "on":
+        alcohol = -1
+    else:
+        alcohol = 0
+    if request.form.get("caffeine") == "on":
+        coffee = 1
+    elif request.form.get("caffeine_excess") == "on":
+        coffee = -1
+    else:
+        coffee = 0
     print(depart_city, arrive_city, departure_string, arrival_string)
     print(sleep_start, sleep_end, shift_day, travel_sleep, alcohol, coffee)
     #return redirect('/')
@@ -34,19 +49,24 @@ def signup():
         return var
 
     #step 1: departure / arrival date and time
-    departure_string = "21 June 2018, 3:00" #basic format, liable for change
-    print("uwu")
+    global fail
+    try:
+        '''in the form of (year, month, day, hour, minute, second, weekday, day
+        of the year, and daylight savings)'''
+        departure = time.strptime(departure_string, "%Y-%m-%dT%H:%M")
+    except:
+        fail = "Invalid Departure Date"
+        return redirect('/error')
 
-    '''in the form of (year, month, day, hour, minute, second, weekday, day
-    of the year, and daylight savings)'''
-    departure = time.strptime(departure_string, "%d %B %Y, %H:%M")
-    #facilitates changing to seconds after epoch
-
-    arrival_string = "21 June 2018, 9:00"
-    arrival = time.strptime(arrival_string, "%d %B %Y, %H:%M")
-    redeparture_string = "26 June 2018"
-    redeparture = time.strptime(redeparture_string, "%d %B %Y")
-
+    try:
+        arrival = time.strptime(arrival_string, "%Y-%m-%dT%H:%M")
+    except:
+        fail = "Invalid Departure Date"
+        return redirect('/error')
+    
+    #redeparture_string = "26 June 2018"
+    #redeparture = time.strptime(redeparture_string, "%d %B %Y")
+    
     dep_time = time.mktime(departure) #converts into seconds after epoch
     arr_time = time.mktime(arrival)
 
@@ -58,11 +78,14 @@ def signup():
         data = (json.loads(response.content))["results"][0]["geometry"]["location"]
         return (data["lat"], data["lng"])
 
-    depart_city = "Montreal" # input here
-    arrive_city = "Beijing" # spaces swapped with +
-
-    lat1, long1 = gather_coords(depart_city)
-    lat2, long2 = gather_coords(arrive_city)
+    #depart_city = "Montreal" # input here
+    #arrive_city = "Beijing" # spaces swapped with +
+    try:
+        lat1, long1 = gather_coords(depart_city)
+        lat2, long2 = gather_coords(arrive_city)
+    except:
+        fail = "Invalid Destination / Arrival Places"
+        return redirect("/error")
 
     def gather_timezone(lat, long, time):
         '''Converts given coordinates into the designated time zone, returning
@@ -74,12 +97,19 @@ def signup():
     depart_tz = gather_timezone(lat1, long1, dep_time)
     arrive_tz = gather_timezone(lat2, long2, arr_time)
     delta = ((arrive_tz - depart_tz)//3600) #difference between dep / arr
-    print(delta)
+    if abs(delta) <= 2:
+        fail = "Time Zone Difference is not significant enough to dedicate a schedule to prevent jet lag"
+        return redirect("/error")
+    #print(delta)
 
     #step 3: sleep schedule
 
-    sleep_start = 23.0
-    sleep_end = 7.0
+    try:
+        sleep_start = int(sleep_start[0:2]) + int(sleep_start[3:5]) / 60 
+        sleep_end = int(sleep_end[0:2]) + int(sleep_end[3:5]) / 60
+    except:
+        fail = "Invalid Sleep Cycle"
+        return redirect("/error")
 
     '''the below function defines lowest body temperature point (lbt)'''
     if sleep_end < sleep_start: #midnight is passed
@@ -95,14 +125,15 @@ def signup():
 
     #step 4: shift day
 
-    shift_day = "19 June 2018"
-    shift = time.strptime(shift_day, "%d %B %Y")
+    shift = time.strptime(shift_day, "%Y-%m-%d")
     shift_time = time.mktime(shift)
     if shift_time > dep_time: #in case the input is later than the dest.
         shift_time = dep_time #assume that they will not shift earlier
 
-    days_before = int((dep_time-shift_time) // 86400) #determines days before dep
-
+    days_before = min(int((dep_time-shift_time) // 86400), abs(delta)) #determines days before dep
+    if days_before == 0:
+        fail = "Impossible to generate schedule with 0 days to shift"
+        return redirect("/error")
     change = delta // days_before #determines the necessary shift of sleep
 
     '''the below function defines lowest body temperature point (lbt)'''
@@ -117,22 +148,6 @@ def signup():
         lbt = sleep_end - 3
     lbt = revert(lbt)
 
-    def schedule(index, change, sleep_start, sleep_end, lbt):
-        '''given an index and phase offset, designs a schedule over x days in index'''
-        for day in range(index):
-            lbt = revert(lbt + change)
-            sleep_start = revert(sleep_start + change)
-            sleep_end = revert(sleep_end + change)
-            print("Local Time")
-            print(sleep_start, sleep_end)
-            print("Destination Time")
-            print(revert(sleep_start + delta), revert(sleep_end + delta))
-        print("-----")
-
-    schedule(days_before, change, sleep_start, sleep_end, lbt)
-
-    #bonus: scientific score of science
-
     def score(days_before, delta, coffee, alcohol, travel_sleep):
         '''Calculates a score measuring efficiency of the generated jet lag schedule
         based on days dedicated to shifting, coffee and alcohol intake, and sleep
@@ -143,6 +158,24 @@ def signup():
         travel_sleep = 0 or 1'''
 
         return (max(days_before, abs(delta)) + coffee*0.2 + alcohol*0.2 + travel_sleep*0.2)
+
+    def schedule(index, change, sleep_start, sleep_end, lbt):
+        '''given an index and phase offset, designs a schedule over x days in index'''
+        for day in range(index):
+            lbt = revert(lbt + change)
+            sleep_start = revert(sleep_start + change)
+            sleep_end = revert(sleep_end + change)
+            print("Local Time")
+            print(sleep_start, sleep_end)
+            print("Destination Time")
+            print(revert(sleep_start + delta), revert(sleep_end + delta))
+        print(score(days_before, delta, coffee, alcohol, travel_sleep))
+
+    schedule(days_before, change, sleep_start, sleep_end, lbt)
+
+    #bonus: scientific score of science
+
+
         #these values are arbitrary and can be tuned further
 
     #bonus2: calculating ideal sleep time for maximum score
