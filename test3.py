@@ -160,18 +160,24 @@ def signup():
         return (max(days_before, abs(delta)) + coffee*0.2 + alcohol*0.2 + travel_sleep*0.2)
 
     def schedule(index, change, sleep_start, sleep_end, lbt):
-        '''given an index and phase offset, designs a schedule over x days in index'''
+        '''given an index and phase offset, designs a schedule over x days
+        in index, returning a tuple with the schedules and the score.'''
+        return_schedule = []
         for day in range(index):
+            placeholder = []
             lbt = revert(lbt + change)
             sleep_start = revert(sleep_start + change)
             sleep_end = revert(sleep_end + change)
-            print("Local Time")
-            print(sleep_start, sleep_end)
-            print("Destination Time")
-            print(revert(sleep_start + delta), revert(sleep_end + delta))
-        print(score(days_before, delta, coffee, alcohol, travel_sleep))
+            #print("Local Time")
+            placeholder.append(sleep_start)
+            placeholder.append(sleep_end)
+            #print("Destination Time")
+            placeholder.append(revert(sleep_start+delta))
+            placeholder.append(revert(sleep_end+delta))
+            return_schedule.append(placeholder)
+        return (return_schedule, (score(index, delta, coffee, alcohol, travel_sleep)))
 
-    schedule(days_before, change, sleep_start, sleep_end, lbt)
+    sch1 = schedule(days_before, change, sleep_start, sleep_end, lbt)
 
     #bonus: scientific score of science
 
@@ -181,9 +187,16 @@ def signup():
     #bonus2: calculating ideal sleep time for maximum score
 
     if 0 < delta < 8: #requirements for phase advance
-        schedule(delta, -1, sleep_start, sleep_end, lbt)
+        sch2 = schedule(delta, -1, sleep_start, sleep_end, lbt)
     else: #requirements for phase delaying
-        schedule(delta//2, 2, sleep_start, sleep_end, lbt)
+        sch2 = schedule(delta//2, 2, sleep_start, sleep_end, lbt)
+    file = open("data.txt","w+")
+    for x in range(len(sch1[0])):
+        file.write("\n")
+        for y in range(4):
+            file.write(str(sch1[0][x][y])+" ")
+    file.write("/n"+str(sch1[1]))
+    file.close()
 
     return redirect('/')
 
